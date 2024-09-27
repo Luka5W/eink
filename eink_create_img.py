@@ -116,7 +116,7 @@ def main(l: Logger, target, size, dither, rotation, gen_f, gen_a):
   rgb_image.save(target['file'], 'JPEG', quality="maximum")
 
   if not ('ap' in target or 'tag' in target):
-    l.info('Image created successfully')
+    l.log('Image created successfully')
     return 0
 
   l.debug('Prepare the HTTP POST request')
@@ -133,7 +133,7 @@ def main(l: Logger, target, size, dither, rotation, gen_f, gen_a):
 
     l.debug('Check the response status')
     if response.status_code == 200:
-      l.info("Image uploaded successfully!")
+      l.log("Image uploaded successfully!")
       return 0
     else:
       l.error("Failed to upload the image.")
