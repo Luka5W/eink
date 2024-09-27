@@ -1,6 +1,8 @@
 Stuff for open e paper link displays
 ====================================
 
+Based on https://github.com/OpenEPaperLink/OpenEPaperLink/wiki/Image-upload/e1cd235984c7ed3b5c54e3f862e783ea196ef40d
+
 Requirements
 ------------
 
