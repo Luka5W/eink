@@ -26,6 +26,10 @@ _for a 1.54" tag_
 	             -vv
 ```
 
+Produced Image:
+
+![A generated image showing Hello in black and World in red on a white background](./helloworld.jpg)
+
 ### Generate and Upload Image
 
 _for a 2.9" tag, in **w**ide (not **t**all) orientation_
@@ -39,10 +43,6 @@ _for a 2.9" tag, in **w**ide (not **t**all) orientation_
 	             -vv \
 		     -u 'http://192.168.178.192' '00000197E5CB3B38' # the first four '0' can be ommitted
 ```
-
-Produced Image:
-
-![A generated image showing Hello in black and World in red on a white background](./helloworld.jpg)
 
 How it Works
 ------------
