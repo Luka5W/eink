@@ -1,11 +1,35 @@
 #!/usr/bin/python3
 
+import sys
 import argparse, requests, json
 from PIL import Image, ImageDraw, ImageFont
+
+
+class Logger:
+  def __init__(self, verbosity: int):
+    self.verbosity = verbosity
+
+  def _log(self, v, f, *m):
+    if self.verbosity >= v:
+      print(file=f, *m)
+
+  def info(self, *m):
+    self._log(1, sys.stdout, *m)
+
+  def debug(self, *m):
+    self._log(2, sys.stdout, *m)
+
+  def log(self, *m):
+    self._log(0, sys.stdout, *m)
+
+  def error(self, *m):
+    self._log(0, sys.stderr, *m)
+
 
 class Payload(object):
   def __init__(self, j):
     self.__dict__ = json.loads(j)
+
 
 sizes = {
   '152x152': [152, 152],
@@ -59,63 +83,75 @@ def gen_text(draw: ImageDraw, image: Image, lines):
       pos_y = 0
     draw.text((pos_x, pos_y), line['t'], fill=line['c'], font=font)
 
-def main(verbosity, target, size, dither, rotation, gen_f, gen_a):
-  if verbosity > 0: print(f'generating image with\n\
-    \tverbosity={verbosity}\n\
-    \ttarget={target}\n\
-    \tsize={size} ({sizes[size][0]}x{sizes[size][1]} px)\n\
-    \tdither={dither}\n\
-    \trotation={rotation}°\n\
-    \tgen_a={gen_a}')
+def main(l: Logger, target, size, dither, rotation, gen_f, gen_a):
+  l.info(f'generating image with\n\
+  \tverbosity={l.verbosity}\n\
+  \ttarget={target}\n\
+  \tsize={size} ({sizes[size][0]}x{sizes[size][1]} px)\n\
+  \tdither={dither}\n\
+  \trotation={rotation}°\n\
+  \tgen_a={gen_a}')
 
-  # Create a new paletted image with indexed colors
+  l.debug('Create a new paletted image with indexed colors')
   image = Image.new('P', (sizes[size][0], sizes[size][1]))
   image.putpalette(palette)
 
-  # Initialize the drawing context
+  l.debug('Initialize the drawing context')
   draw = ImageDraw.Draw(image)
 
-  # Write the text on the image
+  l.debug('Write the text on the image')
   gen_f(draw, image, gen_a)
 
-  #  OpenEPaperLink expects wide/ horizontal images
+  l.debug('OpenEPaperLink expects wide/ horizontal images')
   if image.height > image.width:
     rotation += 90
-  # only flipping is possible. rotation is achieved by using inverted image size
+  l.debug('only flipping is possible. rotation is achieved by using inverted image size')
   if rotation != 0:
     image = image.rotate(rotation, expand=True, fillcolor="white")
 
-  # Convert the image to 24-bit RGB
+  l.debug('Convert the image to 24-bit RGB')
   rgb_image = image.convert('RGB')
 
-  # Save the image as JPEG with maximum quality
+  l.debug('Save the image as JPEG with maximum quality')
   rgb_image.save(target['file'], 'JPEG', quality="maximum")
 
   if not ('ap' in target or 'tag' in target):
-    print('Image created successfully')
+    l.info('Image created successfully')
     return 0
 
-  # Prepare the HTTP POST request
+  l.debug('Prepare the HTTP POST request')
   url = target['ap'] + "/imgupload"
   payload = {"dither": dither, "mac": target['tag']}  # Additional POST parameter
   files = {"file": open(target['file'], "rb")}  # File to be uploaded
+  l.debug(f'HTTP POST request:\n\
+    \turl={url}\n\
+    \tpayload={payload}\n\
+    \tfiles={files}\n')
+  l.debug('Send the HTTP POST request')
+  try:
+    response = requests.post(url, data=payload, files=files, timeout=5)
 
-  # Send the HTTP POST request
-  response = requests.post(url, data=payload, files=files)
-
-  # Check the response status
-  if response.status_code == 200:
-    print("Image uploaded successfully!")
-    return 0
-  else:
-    print("Failed to upload the image.")
-    return 1
+    l.debug('Check the response status')
+    if response.status_code == 200:
+      l.info("Image uploaded successfully!")
+      return 0
+    else:
+      l.error("Failed to upload the image.")
+      return 1
+  except requests.exceptions.ReadTimeout as e:
+    l.error('Connection Error: Request timed out')
+  except requests.exceptions.ConnectionError as e:
+    l.error(f'Connection error: {e.args[0]}')
+  except Exception as e:
+    l.error(f'unexpected exception (type={type(e)}')
+    l.error(e)
+  return 1
 
 # i'll fix it later (tm)
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(prog='eink_create_img',
                                   description='Creates a new image for eink displays.',
-                                  epilog='Repo: @TODO') #TODO 2023-12-03
+                                  epilog='Repo: https://github.com/Luka5w/eink.git (will change some day…)') #TODO 2023-12-03
   parser.add_argument('-d', '--dither', dest='dither',
                       required=False, action='store_const', const=1, default=0,
                       help='sets dither to 1 if set (default: 0); use when you\'re sending photos etc')
@@ -137,19 +173,21 @@ if __name__ == '__main__':
   parser.add_argument('-v', '--verbose', dest='verbosity',
                       required=False, action='count', default=0,
                       help='verbose logging')
-  parser.add_argument('--version', action='version', version='null')
+  parser.add_argument('--version', action='version', version='1')
   args = parser.parse_args()
+  l = Logger(args.verbosity)
+  l.debug('Handling args')
   target = {
     'file': args.output
   }
   if hasattr(args, 'target') and type(args.target) == list:
+    l.debug('Target found → upload image')
     target['ap'] = args.target[0]
     target['tag'] = args.target[1]
   lines = []
   for line in args.input:
-    if args.verbosity > 1:
-      print(f'line={line}')
+    l.debug(f'Line found:\t{line}')
     lines.append(Payload(line).__dict__)
-  exit(main(args.verbosity, target, args.size, args.dither, int(args.rotation), gen_text, lines))
+  exit(main(l, target, args.size, args.dither, int(args.rotation), gen_text, lines))
 
 # vim: set ff=unix ts=2 sw=2 expandtab:
